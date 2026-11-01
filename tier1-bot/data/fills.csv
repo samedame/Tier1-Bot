@@ -1,0 +1,2 @@
+ts_utc,regime,spot,expiry,dte_days,strike,delta,iv,bid,ask,mid,spread,spread_pct_mid,credit_mid_usd,credit_assumed_usd,research_credit_usd,pct_of_research,contracts,shadow
+2026-11-01T08:00:32+00:00,MED,755.72,2026-11-02,1,739.00,-0.0315,0.1868,0.21,0.23,0.220,0.020,0.091,22.00,21.50,7.20,2.986,0,1
