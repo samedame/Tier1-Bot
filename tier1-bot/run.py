@@ -38,8 +38,8 @@ def main() -> int:
     if d.text: lines.append(("⚠️ " if d.active else "") + d.text)
 
     try:
-        spot, expiry, puts, _ = market.spy_chain(now)
-        age = quote_age
+        spot, expiry, puts, chain_age = market.spy_chain(now)
+        age = max(quote_age, chain_age)   # chain_age is the measured quote age with Tradier, 0.0 on Yahoo
     except Exception as e:
         lines.append(f":warning: chain fetch failed: {e}")
         notify.send("\n".join(lines)); return 1
@@ -58,6 +58,7 @@ def main() -> int:
     leg = sig.leg
     lines += ["", f"**H8** · 1-DTE {abs(leg.delta):.3f}-delta naked {config.H8_UNDERLYING} put · Tier 1",
               f"SELL {leg.strike:.0f}P {expiry} ({sig.dte_days}d) · spot {leg.strike and spot:.2f} · IV {leg.iv*100:.1f}%",
+              f"Data: {market.last_source}",
               f"quote {leg.bid:.2f}/{leg.ask:.2f} · credit at mid {money(sig.credit_mid_usd)} · "
               f"at research fill {money(sig.credit_assumed_usd)} · net {money(sig.net_assumed_usd)}",
               f"credit {sig.credit_bp:.2f} bp of notional · research average "
