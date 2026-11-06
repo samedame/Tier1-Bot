@@ -6,15 +6,29 @@ that after 20-30 sessions there is a real record of collectable credit versus th
 assumption, which is the input that decides whether H8's edge survives live execution.
 """
 import csv, os, datetime as dt
+from zoneinfo import ZoneInfo
 from . import config
+
+ET = ZoneInfo("America/New_York")
 
 HEADER = ["ts_utc","regime","spot","expiry","dte_days","strike","delta","iv","bid","ask","mid",
           "spread","spread_pct_mid","credit_mid_usd","credit_assumed_usd","research_credit_usd",
           "pct_of_research","contracts","shadow"]
 
+def _et_date(ts):
+    """ET calendar date of a logged UTC timestamp. Comparing the raw UTC date was wrong: a run
+    logged after 20:00 ET already carries tomorrow's UTC date and would block the next session."""
+    try:
+        t = dt.datetime.fromisoformat(ts)
+    except ValueError:
+        return ts[:10]
+    if t.tzinfo is None:
+        t = t.replace(tzinfo=dt.timezone.utc)
+    return str(t.astimezone(ET).date())
+
 def already_ran_today(et_date, path=None):
-    """True if a row for this ET date is already logged. Two cron entries cover both US
-    daylight-saving offsets, so the second one must no-op rather than double-alert."""
+    """True if a row for this ET date is already logged. Scheduled runs fire repeatedly and a
+    dispatch may follow a cron run, so every run after the first must no-op rather than double-alert."""
     path = path or config.FILLS_CSV
     if not os.path.exists(path): return False
     try:
@@ -23,13 +37,7 @@ def already_ran_today(et_date, path=None):
     except OSError:
         return False
     want = str(et_date)
-    for r in reversed(rows[1:]):
-        if not r: continue
-        ts = r[0]
-        # ts is UTC; compare on the ET calendar date stored alongside it
-        if len(r) > len(HEADER) - 1 and r[-1] is not None and ts[:10] == want: return True
-        if ts[:10] == want: return True
-    return False
+    return any(r and _et_date(r[0]) == want for r in rows[1:])
 
 def append(sig, regime_label, path=None):
     path = path or config.FILLS_CSV

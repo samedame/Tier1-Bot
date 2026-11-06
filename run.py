@@ -85,11 +85,16 @@ def main() -> int:
     })
     lines += ["", conf.line()]
 
-    try:
-        path, pct = fills.append(sig, reg.label)
-        lines.append(f"_logged to {path}_")
-    except Exception as e:
-        lines.append(f":warning: fill log failed: {e}")
+    if in_session:
+        try:
+            path, pct = fills.append(sig, reg.label)
+            lines.append(f"_logged to {path}_")
+        except Exception as e:
+            lines.append(f":warning: fill log failed: {e}")
+    else:
+        # Closed-market quotes are the prior close: they would corrupt the credit-vs-research study
+        # and a row dated today would make already_ran_today() block the real session.
+        lines.append("_test run - not written to the fills log_")
 
     notify.send("\n".join(lines))
     return 0

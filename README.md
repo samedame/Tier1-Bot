@@ -44,7 +44,7 @@ it is costing whenever the regime turns LOW.
 ```bash
 pip install -r requirements.txt
 DRY_RUN=1 python run.py            # prints the alert, sends nothing
-python -m pytest tests/ -q         # 22 tests
+python -m pytest tests/ -q         # 26 tests
 ```
 
 | Variable | Required | Notes |
@@ -58,12 +58,22 @@ python -m pytest tests/ -q         # 22 tests
 
 ## Scheduling
 
-`workflow_dispatch` is the primary trigger so the `open-scheduler` Cloudflare Worker can fire it
-alongside the IBS pre-open and the condor bot. Two cron entries cover both US daylight-saving
-offsets; the fills-log guard makes the second one a no-op on the same ET date.
+`.github/workflows/tier1.yml` has two triggers.
+
+- **`workflow_dispatch` (primary).** The `open-scheduler` Cloudflare Worker fires it at 15:45 ET
+  alongside the IBS pre-open and the condor bot. A dispatch bypasses the time-window guard.
+- **Cron (backstop).** Every half hour through the UTC afternoon, weekdays. GitHub starts cron runs
+  hours late, so `tier1/schedule_guard.py` lets a scheduled run through only if it actually lands
+  between 15:15 and 15:58 ET. Anything else exits in seconds. `fills.already_ran_today` (ET date)
+  makes any second run on the same day a no-op.
 
 H8 enters at the 16:00 ET snapshot in the research, so the alert fires at 15:45 ET and stamps
-itself late past 15:55.
+itself late past 15:55. Runs outside the session are forced to shadow, labelled as a test, and are
+**not** written to `data/fills.csv`.
+
+Set `DISCORD_WEBHOOK_URL` as a repo **secret** and, optionally, `ACCOUNT_CAPITAL_USD`,
+`PROTECTION_STRUCTURE` and `PROTECTION_NOTIONAL_USD` as repo **variables**. The workflow commits
+`data/fills.csv` back to the repo after each logged session.
 
 ## Confidence scoring
 

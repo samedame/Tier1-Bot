@@ -139,3 +139,30 @@ def test_out_of_session_forces_shadow():
     if not in_session:               # run.py forces these two on an out-of-session run
         s.shadow, s.contracts = True, 0
     assert s.shadow and s.contracts == 0
+
+
+# --- scheduling -----------------------------------------------------------------------------
+from tier1 import fills
+from tier1.schedule_guard import decide
+
+def _utc(y, m, d, hh, mm):
+    return dt.datetime(y, m, d, hh, mm, tzinfo=dt.timezone.utc)
+
+def test_guard_passes_the_late_session_window_in_est_and_edt():
+    assert decide(_utc(2026, 11, 5, 20, 45))[0]      # 15:45 EST
+    assert decide(_utc(2026, 10, 28, 19, 45))[0]     # 15:45 EDT
+
+def test_guard_skips_outside_the_window_and_on_weekends():
+    assert not decide(_utc(2026, 11, 5, 18, 45))[0]  # 13:45 ET, too early
+    assert not decide(_utc(2026, 11, 6, 1, 5))[0]    # 20:05 ET, after the close
+    assert not decide(_utc(2026, 11, 7, 20, 45))[0]  # Saturday
+
+def test_guard_lets_dispatch_through_at_any_time():
+    assert decide(_utc(2026, 11, 6, 1, 5), "workflow_dispatch")[0]
+
+def test_already_ran_today_compares_the_et_date_not_the_utc_date(tmp_path):
+    # Logged at 00:33 UTC on Nov 6 = 19:33 ET on Nov 5. It is Nov 5's run, not Nov 6's.
+    p = tmp_path / "fills.csv"
+    p.write_text(",".join(fills.HEADER) + "\n2026-11-06T00:33:10+00:00,MED\n")
+    assert fills.already_ran_today(dt.date(2026, 11, 5), path=str(p))
+    assert not fills.already_ran_today(dt.date(2026, 11, 6), path=str(p))

@@ -1,0 +1,54 @@
+name: tier1
+
+on:
+  schedule:
+    # Best-effort backstop. GitHub starts cron runs hours late on this account, so fire every
+    # half hour through the afternoon (UTC) and let tier1/schedule_guard.py pass only a run that
+    # lands in the 15:15-15:58 ET window; run.py then no-ops if the day is already logged.
+    # The reliable trigger is workflow_dispatch from the open-scheduler Worker at 15:45 ET.
+    - cron: "15,45 14-20 * * 1-5"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tier1-state
+  cancel-in-progress: false
+
+jobs:
+  tier1:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Schedule guard
+        run: python3 -m tier1.schedule_guard --event "${{ github.event_name }}"
+
+      - uses: actions/setup-python@v5
+        if: env.SKIP != '1'
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+        if: env.SKIP != '1'
+
+      - name: Run tier1-bot
+        if: env.SKIP != '1'
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          ACCOUNT_CAPITAL_USD: ${{ vars.ACCOUNT_CAPITAL_USD }}
+          PROTECTION_STRUCTURE: ${{ vars.PROTECTION_STRUCTURE }}
+          PROTECTION_NOTIONAL_USD: ${{ vars.PROTECTION_NOTIONAL_USD }}
+        run: python run.py
+
+      - name: Commit fills log
+        if: env.SKIP != '1'
+        run: |
+          git config user.name  "tier1-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add data/fills.csv
+          git diff --staged --quiet || git commit -m "fills: log $(date -u +%Y-%m-%dT%H:%MZ)"
+          git pull --rebase origin "${GITHUB_REF_NAME}"
+          git push
