@@ -38,7 +38,7 @@ jobs:
         if: env.SKIP != '1'
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          ACCOUNT_CAPITAL_USD: ${{ vars.ACCOUNT_CAPITAL_USD }}
+          ACCOUNT_CAPITAL_USD: ${{ vars.ACCOUNT_CAPITAL_USD || '1500' }}   # default 1500; a repo variable overrides it
           PROTECTION_STRUCTURE: ${{ vars.PROTECTION_STRUCTURE }}
           PROTECTION_NOTIONAL_USD: ${{ vars.PROTECTION_NOTIONAL_USD }}
         run: python run.py
