@@ -8,6 +8,15 @@ on:
     # The reliable trigger is workflow_dispatch from the open-scheduler Worker at 15:45 ET.
     - cron: "15,45 14-20 * * 1-5"
   workflow_dispatch:
+    inputs:
+      scheduled_for_et:
+        description: "Intended fire time (ET, ISO-8601). Set by open-scheduler (ignored by the bot)."
+        required: false
+        default: ""
+      trigger:
+        description: "Who started this run (cf-scheduler | test | manual)"
+        required: false
+        default: "manual"
 
 permissions:
   contents: write
@@ -34,10 +43,18 @@ jobs:
       - run: pip install -r requirements.txt
         if: env.SKIP != '1'
 
+      - name: Log capital source
+        env:
+          CAPITAL_VAR: ${{ vars.ACCOUNT_CAPITAL_USD }}
+        run: |
+          if [ -n "$CAPITAL_VAR" ]; then echo "capital=$CAPITAL_VAR source=repo-variable"; else echo "capital=1500 source=default"; fi
       - name: Run tier1-bot
         if: env.SKIP != '1'
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          # Tradier first; without these the bot falls back to yfinance and labels the alert DELAYED/UNVERIFIED.
+          TRADIER_API_KEY: ${{ secrets.TRADIER_API_KEY }}
+          TRADIER_BASE_URL: ${{ secrets.TRADIER_BASE_URL }}
           ACCOUNT_CAPITAL_USD: ${{ vars.ACCOUNT_CAPITAL_USD || '1500' }}   # default 1500; a repo variable overrides it
           PROTECTION_STRUCTURE: ${{ vars.PROTECTION_STRUCTURE }}
           PROTECTION_NOTIONAL_USD: ${{ vars.PROTECTION_NOTIONAL_USD }}
@@ -52,3 +69,11 @@ jobs:
           git diff --staged --quiet || git commit -m "fills: log $(date -u +%Y-%m-%dT%H:%MZ)"
           git pull --rebase origin "${GITHUB_REF_NAME}"
           git push
+
+      # A job that crashes posts nothing, and "no alert" looks exactly like "no signal". Best effort, never fails the run.
+      - name: Tell Discord if this run failed
+        if: failure()
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python notify_failure.py "Tier1 bot"

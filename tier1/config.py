@@ -54,4 +54,5 @@ DIV_YIELD = _f("DIV_YIELD", 0.012)
 DISCORD_WEBHOOK = os.environ.get("DISCORD_WEBHOOK_URL", "").strip()
 FILLS_CSV       = os.environ.get("FILLS_CSV", "data/fills.csv")
 ALERT_DEADLINE_ET = (15, 55)   # alerts later than this are stamped late
+MAX_QUOTE_AGE_S = 900          # a Tradier leg quote older than this (in session) gets a NOTICE instead of an alert
 DRY_RUN = os.environ.get("DRY_RUN", "").strip() == "1"
