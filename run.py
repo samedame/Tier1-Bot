@@ -30,6 +30,7 @@ def main() -> int:
         reg = regime_mod.classify(closes, vix_asof)
     except Exception as e:
         notify.send(f"{lines[0]}\n:warning: regime classifier failed: {e}")
+        notify.mark_reported()
         return 1
     lines.append(reg.line())
     if session_note: lines.append(f":clock3: {session_note}")
@@ -38,11 +39,11 @@ def main() -> int:
     if d.text: lines.append(("⚠️ " if d.active else "") + d.text)
 
     try:
-        spot, expiry, puts, _ = market.spy_chain(now)
-        age = quote_age
+        res = market.spy_chain_ex(now)
+        spot, expiry, puts = res.spot, res.expiry, res.puts
     except Exception as e:
         lines.append(f":warning: chain fetch failed: {e}")
-        notify.send("\n".join(lines)); return 1
+        notify.send("\n".join(lines)); notify.mark_reported(); return 1
 
     sig = h8.build(spot, expiry, puts, now)
     # You cannot sell a 1-DTE put into a closed market. An out-of-session run is a test, and is
@@ -56,6 +57,18 @@ def main() -> int:
         notify.send("\n".join(lines)); return 0
 
     leg = sig.leg
+    rec = market.leg_record(puts, leg.strike)
+    leg_age = None if rec is None else rec.get("quoteAgeS")
+    # In session the age is the leg's real quote age (None = the source gave no timestamp). It used to be a
+    # hard-coded 0.0 that stamped a delayed yfinance chain as fresh. Out of session it stays "age of the prior close".
+    age = leg_age if in_session else quote_age
+    problem = market.leg_problem(rec, res.source) if in_session else None
+    if problem:
+        lines += ["", f":no_entry: **NOTICE - no H8 alert sent.** {problem[0].upper() + problem[1:]}, so the quote behind "
+                      f"SELL {leg.strike:.0f}P {expiry} is not usable. Nothing was logged to the fills file.",
+                  market.data_line(res, leg_age)]
+        notify.send("\n".join(lines)); return 0
+    lines += ["", market.data_line(res, leg_age)]
     lines += ["", f"**H8** · 1-DTE {abs(leg.delta):.3f}-delta naked {config.H8_UNDERLYING} put · Tier 1",
               f"SELL {leg.strike:.0f}P {expiry} ({sig.dte_days}d) · spot {leg.strike and spot:.2f} · IV {leg.iv*100:.1f}%",
               f"quote {leg.bid:.2f}/{leg.ask:.2f} · credit at mid {money(sig.credit_mid_usd)} · "
@@ -104,4 +117,5 @@ if __name__ == "__main__":
     except Exception:
         traceback.print_exc()
         notify.send(f":rotating_light: tier1-bot crashed\n```{traceback.format_exc()[-1200:]}```")
+        notify.mark_reported()
         sys.exit(1)

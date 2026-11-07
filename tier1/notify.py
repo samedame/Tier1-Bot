@@ -13,3 +13,14 @@ def send(text: str) -> bool:
             return 200 <= r.status < 300
     except Exception as e:
         print(f"[notify] delivery failed: {e}"); return False
+
+
+def mark_reported() -> None:
+    """Tell notify_failure.py this run already explained its own failure in Discord (no duplicate message)."""
+    if config.DRY_RUN or not config.DISCORD_WEBHOOK:
+        return
+    try:
+        import os
+        open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".notified"), "w").close()
+    except OSError:
+        pass
