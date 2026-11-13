@@ -1,12 +1,13 @@
 name: tier1
 
 on:
-  schedule:
-    # Best-effort backstop. GitHub starts cron runs hours late on this account, so fire every
-    # half hour through the afternoon (UTC) and let tier1/schedule_guard.py pass only a run that
-    # lands in the 15:15-15:58 ET window; run.py then no-ops if the day is already logged.
-    # The reliable trigger is workflow_dispatch from the open-scheduler Worker at 15:45 ET.
-    - cron: "15,45 14-20 * * 1-5"
+  # DISABLED (H8 BLOCKED per trading-ops GATES.md): schedule removed (fleet scan). Re-enable by restoring the block below.
+  # schedule:
+  #   # Best-effort backstop. GitHub starts cron runs hours late on this account, so fire every
+  #   # half hour through the afternoon (UTC) and let tier1/schedule_guard.py pass only a run that
+  #   # lands in the 15:15-15:58 ET window; run.py then no-ops if the day is already logged.
+  #   # The reliable trigger is workflow_dispatch from the open-scheduler Worker at 15:45 ET.
+  #   - cron: "15,45 14-20 * * 1-5"
   workflow_dispatch:
 
 permissions:
@@ -18,6 +19,7 @@ concurrency:
 
 jobs:
   tier1:
+    if: ${{ vars.RETIRED_ENABLED == 'true' }}   # off-switch: set this repo variable to 'true' to run (also blocks Worker dispatches)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
